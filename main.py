@@ -82,8 +82,6 @@ Not therapeutic. Not soft. The question that cuts to the actual thing.
 
 ---
 
-Max 260 words total. Write in English."""
-
 Write in English. Max 250 words total."""
 @app.post("/analyze")
 async def analyze_dream(dream: DreamData, request: Request):
