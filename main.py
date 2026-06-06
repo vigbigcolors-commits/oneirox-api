@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = FastAPI(title="Oneirox API")
-# Rate limiting: 10 запросов в час с одного IP
+# Rate limiting: 50 запросов в час с одного IP
 request_counts = defaultdict(list)
 
 def check_rate_limit(ip: str):
     now = time.time()
     hour_ago = now - 3600
     request_counts[ip] = [t for t in request_counts[ip] if t > hour_ago]
-    if len(request_counts[ip]) >= 10:
+    if len(request_counts[ip]) >= 50:
         raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     request_counts[ip].append(now)
 
