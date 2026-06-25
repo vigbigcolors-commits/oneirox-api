@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from collections import defaultdict
+from pathlib import Path
 import time
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,17 +8,21 @@ import anthropic
 import os
 from dotenv import load_dotenv
 
+from dream_validation import build_user_message, get_response_budget, validate_dream
+
 load_dotenv()
 
 app = FastAPI(title="Oneirox API")
-# Rate limiting: 10 запросов в час с одного IP
+# Rate limiting: 5 запросов в час с одного IP
 request_counts = defaultdict(list)
+RATE_LIMIT = 5
+RATE_WINDOW = 3600
 
 def check_rate_limit(ip: str):
     now = time.time()
-    hour_ago = now - 3600
-    request_counts[ip] = [t for t in request_counts[ip] if t > hour_ago]
-    if len(request_counts[ip]) >= 10:
+    cutoff = now - RATE_WINDOW
+    request_counts[ip] = [t for t in request_counts[ip] if t > cutoff]
+    if len(request_counts[ip]) >= RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     request_counts[ip].append(now)
 
@@ -28,76 +33,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-import os
 api_key = os.environ.get("ANTHROPIC_API_KEY")
 client = anthropic.Anthropic(api_key=api_key)
 
 class DreamData(BaseModel):
     text: str
 
-ONEIROX_PROMPT = """You are the interpretive engine of Oneirox.com.
-
-Your foundation is sleep neuroscience — not symbol dictionaries, not archetypes, not spirituality.
-
----
-
-SCIENTIFIC FRAMEWORK (use whichever fits this dream — never force one):
-
-1. THREAT SIMULATION (Revonsuo) — amygdala rehearses survival scenarios
-2. EMOTIONAL REGULATION (Cartwright, Walker) — REM processes unresolved emotional charge
-3. MEMORY CONSOLIDATION (Stickgold, Walker) — hippocampus replays and integrates recent experience
-4. SOMATIC SIGNAL (Damasio) — body state leaking into narrative: pain, hunger, exhaustion, illness
-5. MOTIVATIONAL CONFLICT (Solms) — dopaminergic drive systems surfacing suppressed wants
-6. COGNITIVE OFFLOADING (Hobson) — cortex narrativizing random activation into meaning
-7. SOCIAL SIMULATION — prefrontal cortex stress-testing relationships, hierarchies, trust
-
-Identify which mechanism is most active in this dream.
-If two are present — name both. Never force a single frame onto a complex dream.
-
----
-
-YOUR VOICE:
-Direct. Sensory. Dark but grounded.
-The reader woke at 3am. They need the real answer — not comfort, not poetry, not a textbook.
-Never say "this may indicate" or "could suggest."
-Never default to "your nervous system" as a catch-all.
-Name the actual mechanism. Be specific. Be honest.
-
----
-
-STRUCTURE — use exactly these markers:
-
-[SIGNAL]
-One sentence. The core diagnostic truth of this dream.
-Not what it "means" — what the brain was actually doing.
-
-[BODY]
-2–3 paragraphs. Identify the active mechanism and explain what was being processed.
-Reference the science naturally — as understanding, not citation.
-Be specific to the content of THIS dream, not generic.
-
-[MORNING]
-One question the dreamer should sit with today.
-Not therapeutic. Not soft. The question that cuts to the actual thing.
-
----
-
-Max 260 words total. Write in English."""
+PROMPT_PATH = Path(__file__).resolve().parent / "ONEIROX_PROMPT.txt"
+ONEIROX_PROMPT = PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 @app.post("/analyze")
 async def analyze_dream(dream: DreamData, request: Request):
     check_rate_limit(request.client.host)
+
+    try:
+        validate_dream(dream.text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    budget = get_response_budget(dream.text)
     message = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=500,
+        max_tokens=budget.max_tokens,
         messages=[
             {
                 "role": "user",
-                "content": f"{ONEIROX_PROMPT}\n\nDream: {dream.text}"
+                "content": build_user_message(ONEIROX_PROMPT, dream.text, budget),
             }
-        ]
+        ],
     )
     return {
         "status": "ok",
-        "interpretation": message.content[0].text
+        "interpretation": message.content[0].text,
+        "tier": budget.tier,
+        "word_limit": budget.word_limit,
     }

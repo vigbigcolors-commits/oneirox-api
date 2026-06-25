@@ -1,0 +1,14 @@
+Где что менять
+Задача	Файл
+Тон, наука, структура ответа
+ONEIROX_API\main.py → ONEIROX_PROMPT
+Модель, лимиты, rate limit
+main.py → analyze_dream()
+Прогресс-бар, верстка, mapper
+oneirox-engine.js
+Поле Decode, кнопка
+HTML Block 1 в Kadence (не трогать без нужды)
+Итог
+За логику Decode отвечает один endpoint:
+POST https://oneirox-api-production.up.railway.app/analyze
+в файле Desktop\ONEIROX_API\main.py.
