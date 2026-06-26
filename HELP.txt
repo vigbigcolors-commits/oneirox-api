@@ -1,14 +1,21 @@
 Где что менять
 Задача	Файл
-Тон, наука, структура ответа
-ONEIROX_API\main.py → ONEIROX_PROMPT
-Модель, лимиты, rate limit
-main.py → analyze_dream()
-Прогресс-бар, верстка, mapper
-oneirox-engine.js
+Тон, наука, структура, простой язык
+ONEIROX_PROMPT.txt
+Модель, лимиты, rate limit, endpoint
+main.py + dream_validation.py
+Локальный тест
+py test_dream.py dream.txt
+Прогресс-бар, верстка, mapper, ошибки API
+oneirox-engine.js (WordPress v10.9)
+Сброс кэша JS
+oneirox-core.php — bump версии при каждом обновлении JS
 Поле Decode, кнопка
 HTML Block 1 в Kadence (не трогать без нужды)
-Итог
-За логику Decode отвечает один endpoint:
+
+Полное состояние проекта → CONTINUE.md
+
+Endpoint
 POST https://oneirox-api-production.up.railway.app/analyze
-в файле Desktop\ONEIROX_API\main.py.
+GitHub → vigbigcolors-commits/oneirox-api
+Railway → eloquent-enchantment / oneirox-api
