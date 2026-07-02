@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from dream_validation import (
     REWRITE_ADDRESS_INSTRUCTION,
+    REWRITE_ADDRESS_STRICT,
     build_dream_user_message,
     get_response_budget,
     validate_dream,
@@ -64,27 +65,29 @@ class DreamData(BaseModel):
 def generate_interpretation(dream_text: str, budget) -> str:
     prompt = load_prompt()
     user_content = build_dream_user_message(dream_text, budget)
+    messages = [{"role": "user", "content": user_content}]
 
     message = client.messages.create(
         model=MODEL,
         max_tokens=budget.max_tokens,
         system=prompt,
-        messages=[{"role": "user", "content": user_content}],
+        messages=messages,
     )
     raw = message.content[0].text
+    messages.append({"role": "assistant", "content": raw})
 
-    if violates_dreamer_address(raw):
+    for instruction in (REWRITE_ADDRESS_INSTRUCTION, REWRITE_ADDRESS_STRICT):
+        if not violates_dreamer_address(raw):
+            break
+        messages.append({"role": "user", "content": instruction})
         rewrite = client.messages.create(
             model=MODEL,
             max_tokens=budget.max_tokens,
             system=prompt,
-            messages=[
-                {"role": "user", "content": user_content},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": REWRITE_ADDRESS_INSTRUCTION},
-            ],
+            messages=messages,
         )
         raw = rewrite.content[0].text
+        messages.append({"role": "assistant", "content": raw})
 
     return raw
 
