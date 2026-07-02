@@ -205,10 +205,32 @@ def sanitize_decode_output(text: str) -> str:
     morning = re.search(r"(\[MORNING\])([\s\S]*)", out, re.IGNORECASE)
     if morning:
         tail = morning.group(2)
-        tail = re.sub(r"\bHad she\b", "Had you", tail, flags=re.IGNORECASE)
-        tail = re.sub(r"\bDid she\b", "Did you", tail, flags=re.IGNORECASE)
+        tail = _fix_morning_question(tail)
         out = out[: morning.start(2)] + tail
 
     out = re.sub(r"([.!?]\s+)she ", r"\1She ", out)
     out = re.sub(r"  +", " ", out)
     return out.strip()
+
+
+def _fix_morning_question(tail: str) -> str:
+    """Fix MORNING without breaking 'Did she tell you' partner questions."""
+    # Repair bad output from older blanket Had she → Had you
+    tail = re.sub(r"\bHad you told you\b", "Did she tell you", tail, flags=re.IGNORECASE)
+    tail = re.sub(r"\bDid you told you\b", "Did she tell you", tail, flags=re.IGNORECASE)
+
+    partner_ok = [
+        (r"\bHad she told you\b", "Did she tell you"),
+        (r"\bHad she mentioned\b", "Did she mention"),
+        (r"\bHad she said\b", "Did she say"),
+        (r"\bHad she ever told you\b", "Did she ever tell you"),
+    ]
+    for pattern, repl in partner_ok:
+        tail = re.sub(pattern, repl, tail, flags=re.IGNORECASE)
+
+    # Questions wrongly about her inner state → back to the dreamer
+    tail = re.sub(r"\bHad she named\b", "Had you already named", tail, flags=re.IGNORECASE)
+    tail = re.sub(r"\bHad she been pulling back\b", "Had you noticed her pulling back", tail, flags=re.IGNORECASE)
+    tail = re.sub(r"\bHad she said yes out loud\b", "Had you said yes out loud", tail, flags=re.IGNORECASE)
+
+    return tail
