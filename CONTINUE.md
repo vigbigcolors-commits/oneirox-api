@@ -30,7 +30,8 @@
 - Production URL: https://oneirox-api-production.up.railway.app/analyze
 - Variable: `ANTHROPIC_API_KEY` (на eloquent-enchantment — есть)
 - Rate limit: **5 запросов / час / IP**
-- Автодеплой Railway: **выключен** → после push нужен Redeploy вручную
+- Автодеплой Railway: **выключен** → после push нужен **Redeploy вручную** в Railway Dashboard
+- Проверка версии промпта на проде: `GET https://oneirox-api-production.up.railway.app/version` → поле `prompt_sha12` должно совпадать с локальным после Redeploy
 
 ---
 

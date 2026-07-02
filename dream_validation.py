@@ -111,8 +111,8 @@ def get_response_budget(text: str) -> ResponseBudget:
     )
 
 
-def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> str:
-    limits = (
+def build_response_limits(budget: ResponseBudget) -> str:
+    return (
         f"\n\n---\n"
         f"DREAM LENGTH: {budget.dream_words} words ({budget.tier}).\n"
         f"RESPONSE LIMIT: {budget.word_limit} words total.\n"
@@ -121,7 +121,56 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         f"[MORNING] max {budget.morning_limit} words.\n"
         f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
         f"CRITICAL: dreamer = you/your only. Banned: her brain, his brain, Had she. "
+        f"Dream characters are built by YOUR brain. "
         f"Open inside the dream or body — not with 'Your brain' or 'Your amygdala'. "
         f"Vary where the clearest answer lands (SIGNAL or middle/end of BODY). No template rhythm."
     )
-    return f"{prompt}{limits}\n\nDream: {dream_text}"
+
+
+def build_dream_user_message(dream_text: str, budget: ResponseBudget) -> str:
+    return f"{build_response_limits(budget)}\n\nDream: {dream_text}"
+
+
+def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> str:
+    """Legacy: prompt embedded in user message (local test fallback)."""
+    return f"{prompt}{build_dream_user_message(dream_text, budget)}"
+
+
+REWRITE_ADDRESS_INSTRUCTION = (
+    "REWRITE the full response. You violated ADDRESS / DREAM OWNERSHIP rules.\n"
+    "The person who typed the dream is YOU. Their sleep mechanisms are YOUR brain, YOUR amygdala — "
+    "never her brain / his brain for the dreamer.\n"
+    "If she rejects you IN the dream, YOUR brain built that scene.\n"
+    "[MORNING] must use Had you / Did you — not Had she / Did he about the dreamer.\n"
+    "Keep exact markers [SIGNAL] [BODY] [MORNING]. Same dream. Plain language."
+)
+
+
+def _extract_section(text: str, tag: str) -> str:
+    m = re.search(rf"\[{tag}\]([\s\S]*?)(?=\[|$)", text, re.IGNORECASE)
+    return m.group(1) if m else ""
+
+
+def violates_dreamer_address(text: str) -> bool:
+    """True when response attributes dreamer's sleep circuits to her/his brain."""
+    if re.search(
+        r"\b(?:her|his)\s+(?:brain|amygdala|hippocampus|limbic(?:\s+system)?|"
+        r"emotional\s+system|insula|nervous\s+system)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return True
+
+    signal = _extract_section(text, "SIGNAL")
+    if signal and re.match(
+        r"^\s*(?:Her|His)\s+(?:brain|amygdala|hippocampus|limbic|emotional\s+system|insula)\b",
+        signal,
+        re.IGNORECASE,
+    ):
+        return True
+
+    morning = _extract_section(text, "MORNING")
+    if morning and re.search(r"\bHad\s+(?:she|he)\b", morning, re.IGNORECASE):
+        return True
+
+    return False
