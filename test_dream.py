@@ -47,23 +47,19 @@ def analyze(dream_text: str) -> tuple[str, object]:
         messages=[{"role": "user", "content": user_content}],
     )
     raw = message.content[0].text
-    messages = [
-        {"role": "user", "content": user_content},
-        {"role": "assistant", "content": raw},
-    ]
-    for instruction in (REWRITE_ADDRESS_INSTRUCTION, REWRITE_ADDRESS_STRICT):
-        if not violates_dreamer_address(raw):
-            break
+    if violates_dreamer_address(raw):
         print("(address violation — rewriting…)\n")
-        messages.append({"role": "user", "content": instruction})
         rewrite = client.messages.create(
             model=MODEL,
             max_tokens=budget.max_tokens,
             system=PROMPT,
-            messages=messages,
+            messages=[
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": REWRITE_ADDRESS_STRICT},
+            ],
         )
         raw = rewrite.content[0].text
-        messages.append({"role": "assistant", "content": raw})
     return raw, budget
 
 

@@ -65,29 +65,28 @@ class DreamData(BaseModel):
 def generate_interpretation(dream_text: str, budget) -> str:
     prompt = load_prompt()
     user_content = build_dream_user_message(dream_text, budget)
-    messages = [{"role": "user", "content": user_content}]
 
     message = client.messages.create(
         model=MODEL,
         max_tokens=budget.max_tokens,
         system=prompt,
-        messages=messages,
+        messages=[{"role": "user", "content": user_content}],
     )
     raw = message.content[0].text
-    messages.append({"role": "assistant", "content": raw})
 
-    for instruction in (REWRITE_ADDRESS_INSTRUCTION, REWRITE_ADDRESS_STRICT):
-        if not violates_dreamer_address(raw):
-            break
-        messages.append({"role": "user", "content": instruction})
+    # One rewrite only — avoids Railway/browser timeout (was 3 Claude calls).
+    if violates_dreamer_address(raw):
         rewrite = client.messages.create(
             model=MODEL,
             max_tokens=budget.max_tokens,
             system=prompt,
-            messages=messages,
+            messages=[
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": REWRITE_ADDRESS_STRICT},
+            ],
         )
         raw = rewrite.content[0].text
-        messages.append({"role": "assistant", "content": raw})
 
     return raw
 
@@ -114,7 +113,18 @@ async def analyze_dream(dream: DreamData, request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
     budget = get_response_budget(dream.text)
-    raw = generate_interpretation(dream.text, budget)
+    try:
+        raw = generate_interpretation(dream.text, budget)
+    except anthropic.APIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Decode is busy. Wait a minute and try again.",
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Decode error. Try again in a moment.",
+        )
     return {
         "status": "ok",
         "interpretation": raw,
