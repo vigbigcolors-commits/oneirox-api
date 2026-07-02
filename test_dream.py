@@ -8,14 +8,7 @@ import anthropic
 from dotenv import load_dotenv
 import os
 
-from dream_validation import (
-    REWRITE_ADDRESS_INSTRUCTION,
-    REWRITE_ADDRESS_STRICT,
-    build_dream_user_message,
-    get_response_budget,
-    validate_dream,
-    violates_dreamer_address,
-)
+from dream_validation import build_user_message, get_response_budget, validate_dream
 
 load_dotenv()
 
@@ -39,28 +32,17 @@ def analyze(dream_text: str) -> tuple[str, object]:
     print(f"Dream: {budget.dream_words} words -> tier: {budget.tier}, limit: {budget.word_limit} words\n")
 
     client = anthropic.Anthropic(api_key=api_key)
-    user_content = build_dream_user_message(dream_text, budget)
     message = client.messages.create(
         model=MODEL,
         max_tokens=budget.max_tokens,
-        system=PROMPT,
-        messages=[{"role": "user", "content": user_content}],
+        messages=[
+            {
+                "role": "user",
+                "content": build_user_message(PROMPT, dream_text, budget),
+            }
+        ],
     )
-    raw = message.content[0].text
-    if violates_dreamer_address(raw):
-        print("(address violation — rewriting…)\n")
-        rewrite = client.messages.create(
-            model=MODEL,
-            max_tokens=budget.max_tokens,
-            system=PROMPT,
-            messages=[
-                {"role": "user", "content": user_content},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": REWRITE_ADDRESS_STRICT},
-            ],
-        )
-        raw = rewrite.content[0].text
-    return raw, budget
+    return message.content[0].text, budget
 
 
 def read_dream() -> str:
