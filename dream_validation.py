@@ -120,8 +120,8 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         f"[BODY] max {budget.body_limit} words (2–3 paragraphs for long dreams). "
         f"[MORNING] max {budget.morning_limit} words.\n"
         f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
+        f"CRITICAL: dreamer = you/your only. Banned: her brain, his brain, Had she. "
         f"Open inside the dream or body — not with 'Your brain' or 'Your amygdala'. "
-        f"Address the dreamer as you/your — never her/his brain for the dreamer. "
         f"Vary where the clearest answer lands (SIGNAL or middle/end of BODY). No template rhythm."
     )
     return f"{prompt}{limits}\n\nDream: {dream_text}"
