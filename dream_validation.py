@@ -119,6 +119,18 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         f"[SIGNAL] max {budget.signal_limit} words. "
         f"[BODY] max {budget.body_limit} words (2–3 paragraphs for long dreams). "
         f"[MORNING] max {budget.morning_limit} words.\n"
-        f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding."
+        f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
+        f"Every brain term: name (plain words in parentheses). Typer = you/your."
     )
-    return f"{prompt}{limits}\n\nDream: {dream_text}"
+    note = ""
+    if re.search(
+        r"\b(?:she|her)\s+(?:dream|dreamed|dreamt|left|broke up)|"
+        r"\b(?:my|her)\s+(?:girlfriend|boyfriend|partner|ex|wife|husband)\b",
+        dream_text,
+        re.IGNORECASE,
+    ):
+        note = (
+            "\n\nCLIENT: Partner/ex dream or breakup story. Address typer as YOU. "
+            "Banned in output: her brain, her amygdala, her limbic, Had she."
+        )
+    return f"{prompt}{limits}{note}\n\nDream: {dream_text}"
