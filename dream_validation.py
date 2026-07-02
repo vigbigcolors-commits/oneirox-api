@@ -130,7 +130,9 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         re.IGNORECASE,
     ):
         note = (
-            "\n\nCLIENT: Partner/ex dream or breakup story. Address typer as YOU. "
-            "Banned in output: her brain, her amygdala, her limbic, Had she."
+            "\n\nCLIENT: Partner/ex dream or breakup. Typer = YOU only for neuroscience. "
+            "BANNED even with parentheses: her brain, her amygdala, her limbic, her system, her REM, Had she. "
+            "Use: she told you / she left + your grief, your shock, your mind scanning. "
+            "Every science term: name (plain words in parentheses)."
         )
     return f"{prompt}{limits}{note}\n\nDream: {dream_text}"
