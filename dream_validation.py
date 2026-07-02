@@ -136,3 +136,79 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
             "Every science term: name (plain words in parentheses)."
         )
     return f"{prompt}{limits}{note}\n\nDream: {dream_text}"
+
+
+_ORGAN = (
+    r"amygdala|hippocampus|limbic(?:\s+system)?|insula|thalamus|"
+    r"prefrontal cortex|nervous system|emotional(?:\s+system)?"
+)
+
+
+def sanitize_decode_output(text: str) -> str:
+    """
+    Last-line guard: never ship another person's brain/organ diagnosis.
+    Zero extra API calls — runs on every response before return.
+    """
+    out = text
+
+    phrase_fixes = [
+        (rf"\bHer\s+(?:{_ORGAN})\s*\([^)]*\)\s+was\s+staging", "In what she told you, the dream was staging"),
+        (rf"\bHer\s+(?:{_ORGAN})\s*\([^)]*\)\s+rehearsed", "In what she described, rejection replayed"),
+        (rf"\bher\s+(?:{_ORGAN})\s*\([^)]*\)\s+was\s+", "what she reported was "),
+        (r"\b[Tt]hat's\s+her brain\s+running\s+a\s+drill", "She kept having the same dream"),
+        (r"\bher brain was already working\b", "she was already wrestling with something"),
+        (r"\bHer brain was already working\b", "She was already wrestling with something"),
+        (r"\bher brain was already\b", "she was already"),
+        (r"\bHer brain was already\b", "She was already"),
+        (r"\bher brain ran\b", "she reported dreams where"),
+        (r"\bHer brain ran\b", "She reported dreams where"),
+        (r"\bher limbic system\s+is\s+running\b", "you are processing"),
+        (r"\bHer limbic system\s+is\s+running\b", "You are processing"),
+    ]
+    for pattern, repl in phrase_fixes:
+        out = re.sub(pattern, repl, out, flags=re.IGNORECASE)
+
+    out = re.sub(
+        rf"\bHer\s+(?:{_ORGAN})\s*\([^)]*\)",
+        "What she told you from her dreams",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        rf"\bher\s+(?:{_ORGAN})\s*\([^)]*\)",
+        "what she told you from her dreams",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        rf"\bHer\s+(?:{_ORGAN})\b",
+        "What she reported",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        rf"\bher\s+(?:{_ORGAN})\b",
+        "what she reported",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(r"\bHer brain\s*\([^)]*\)", "What she told you", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bher brain\s*\([^)]*\)", "what she told you", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bHer brain\b", "She", out)
+    out = re.sub(r"\bher brain\b", "she", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bHis brain\b", "He", out)
+    out = re.sub(r"\bhis brain\b", "he", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bher fear alarm\b", "what she feared", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bher system\b", "what she described", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bher REM\b", "her dreams", out, flags=re.IGNORECASE)
+
+    morning = re.search(r"(\[MORNING\])([\s\S]*)", out, re.IGNORECASE)
+    if morning:
+        tail = morning.group(2)
+        tail = re.sub(r"\bHad she\b", "Had you", tail, flags=re.IGNORECASE)
+        tail = re.sub(r"\bDid she\b", "Did you", tail, flags=re.IGNORECASE)
+        out = out[: morning.start(2)] + tail
+
+    out = re.sub(r"([.!?]\s+)she ", r"\1She ", out)
+    out = re.sub(r"  +", " ", out)
+    return out.strip()

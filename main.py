@@ -8,7 +8,7 @@ import anthropic
 import os
 from dotenv import load_dotenv
 
-from dream_validation import build_user_message, get_response_budget, validate_dream
+from dream_validation import build_user_message, get_response_budget, sanitize_decode_output, validate_dream
 
 load_dotenv()
 
@@ -62,9 +62,10 @@ async def analyze_dream(dream: DreamData, request: Request):
             }
         ],
     )
+    raw = sanitize_decode_output(message.content[0].text)
     return {
         "status": "ok",
-        "interpretation": message.content[0].text,
+        "interpretation": raw,
         "tier": budget.tier,
         "word_limit": budget.word_limit,
     }
