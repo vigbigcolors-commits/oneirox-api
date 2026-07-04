@@ -83,21 +83,21 @@ def get_response_budget(text: str) -> ResponseBudget:
     if words < 120:
         return ResponseBudget(
             dream_words=words,
-            word_limit=300,
-            body_limit=220,
-            morning_limit=25,
-            signal_limit=30,
-            max_tokens=500,
+            word_limit=320,
+            body_limit=240,
+            morning_limit=28,
+            signal_limit=32,
+            max_tokens=550,
             tier="standard",
         )
     if words < 300:
         return ResponseBudget(
             dream_words=words,
-            word_limit=400,
-            body_limit=310,
-            morning_limit=30,
-            signal_limit=35,
-            max_tokens=650,
+            word_limit=420,
+            body_limit=330,
+            morning_limit=32,
+            signal_limit=38,
+            max_tokens=700,
             tier="long",
         )
     return ResponseBudget(
@@ -122,19 +122,38 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
         f"Every brain term: name (plain words in parentheses). Typer = you/your."
     )
-    note = ""
+    notes: list[str] = []
     if re.search(
         r"\b(?:she|her)\s+(?:dream|dreamed|dreamt|left|broke up)|"
         r"\b(?:my|her)\s+(?:girlfriend|boyfriend|partner|ex|wife|husband)\b",
         dream_text,
         re.IGNORECASE,
     ):
-        note = (
+        notes.append(
             "\n\nCLIENT: Partner/ex dream or breakup. Typer = YOU only for neuroscience. "
             "BANNED even with parentheses: her brain, her amygdala, her limbic, her system, her REM, Had she. "
             "Use: she told you / she left + your grief, your shock, your mind scanning. "
             "Every science term: name (plain words in parentheses)."
         )
+    if re.search(
+        r"\b(?:recurring|same dream|exact same dream|never changed|"
+        r"for (?:almost )?(?:\d+\s*)?(?:years|yrs|decades|two decades)|"
+        r"since (?:I was|childhood|age \d)|sleep paralysis|sleep\s+paralysis|"
+        r"\bparalysis\b|atonia|lucid(?:ity)?|partial wake|watcher on a hill)\b",
+        dream_text,
+        re.IGNORECASE,
+    ):
+        notes.append(
+            "\n\nCLIENT: Recurring dream and/or sleep paralysis. Physiology first — NOT therapy. "
+            "Stack: REM atonia (muscle lock during dream sleep) + sympathetic arousal (fire, fight) + "
+            "Revonsuo threat simulation (same drill, not prophecy). "
+            "Watcher on hill = immobilized observer projected outward — NOT a childhood person to identify. "
+            "Lucidity: somatic trigger mapping (breath, chest, temperature, heart rate before meadow) — "
+            "NOT interrogating dream characters. "
+            "MORNING: one somatic/body question only. BANNED: Who in your early life, Who watched you, "
+            "suppressed memory, attachment figure."
+        )
+    note = "".join(notes)
     return f"{prompt}{limits}{note}\n\nDream: {dream_text}"
 
 
@@ -164,6 +183,19 @@ def sanitize_decode_output(text: str) -> str:
         (r"\bHer brain ran\b", "She reported dreams where"),
         (r"\bher limbic system\s+is\s+running\b", "you are processing"),
         (r"\bHer limbic system\s+is\s+running\b", "You are processing"),
+        (r"\bsuppressed memory waiting to confess\b", "a cognitive placeholder for motor lock during atonia"),
+        (
+            r"\bThe watcher on the hill isn't waiting for questions\b",
+            "The watcher is not a person to interrogate—it is your immobilized state projected outward",
+        ),
+        (
+            r"\bsomeone who sees you struggle and chooses distance\b",
+            "your paralyzed observer position projected outward during atonia",
+        ),
+        (
+            r"\bThe watcher represents the thing you have not been able to change\b",
+            "The watcher maps the stillness of atonia while your body runs a threat drill",
+        ),
     ]
     for pattern, repl in phrase_fixes:
         out = re.sub(pattern, repl, out, flags=re.IGNORECASE)
@@ -232,5 +264,22 @@ def _fix_morning_question(tail: str) -> str:
     tail = re.sub(r"\bHad she named\b", "Had you already named", tail, flags=re.IGNORECASE)
     tail = re.sub(r"\bHad she been pulling back\b", "Had you noticed her pulling back", tail, flags=re.IGNORECASE)
     tail = re.sub(r"\bHad she said yes out loud\b", "Had you said yes out loud", tail, flags=re.IGNORECASE)
+
+    # Therapy / childhood fishing → somatic redirect (Oneirox positioning)
+    somatic_q = (
+        "What does your chest or breathing do in the seconds before "
+        "the meadow goes dark and your body locks?"
+    )
+    therapy_patterns = [
+        r"Who in your early life[^?]*\?",
+        r"Who[^?]{0,80}watched you[^?]*\?",
+        r"Who[^?]{0,80}stayed on the hill[^?]*\?",
+        r"Who[^?]{0,80}(?:childhood|growing up)[^?]*\?",
+        r"What[^?]{0,60}(?:mother|father|parent)[^?]*\?",
+    ]
+    for pattern in therapy_patterns:
+        if re.search(pattern, tail, flags=re.IGNORECASE):
+            tail = re.sub(pattern, somatic_q, tail, flags=re.IGNORECASE, count=1)
+            break
 
     return tail

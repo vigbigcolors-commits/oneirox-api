@@ -8,7 +8,7 @@ import anthropic
 from dotenv import load_dotenv
 import os
 
-from dream_validation import build_user_message, get_response_budget, validate_dream
+from dream_validation import build_user_message, get_response_budget, sanitize_decode_output, validate_dream
 
 load_dotenv()
 
@@ -42,7 +42,8 @@ def analyze(dream_text: str) -> tuple[str, object]:
             }
         ],
     )
-    return message.content[0].text, budget
+    raw = sanitize_decode_output(message.content[0].text)
+    return raw, budget
 
 
 def read_dream() -> str:
