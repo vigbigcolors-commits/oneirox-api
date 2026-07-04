@@ -120,8 +120,11 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
         f"[BODY] max {budget.body_limit} words (2–3 paragraphs for long dreams). "
         f"[MORNING] max {budget.morning_limit} words.\n"
         f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
-        f"Every brain term: name (plain words in parentheses). Typer = you/your."
+        f"Every brain term: name (plain words in parentheses). Typer = you/your.\n"
+        f"OPENING CANON: never start [SIGNAL] or BODY para 1 with Your brain/amygdala/thalamus/hippocampus."
     )
+    if budget.tier != "short":
+        limits += "\nQUICK ANSWER: required mid-BODY — plain 1-2 sentences after para 1."
     notes: list[str] = []
     if re.search(
         r"\b(?:she|her)\s+(?:dream|dreamed|dreamt|left|broke up)|"
@@ -162,6 +165,86 @@ _ORGAN = (
     r"prefrontal cortex|nervous system|emotional(?:\s+system)?"
 )
 
+_BANNED_OPENER = re.compile(
+    r"^Your\s+(?:brain|amygdala|hippocampus|thalamus|limbic(?:\s+system)?|"
+    r"insula|brainstem|prefrontal\s+cortex)\b",
+    re.IGNORECASE,
+)
+
+_OPENER_REWRITES = [
+    (r"^Your brain is not (.+)$", r"You are not \1"),
+    (r"^Your brain isn't (.+)$", r"You aren't \1"),
+    (r"^Your brain is (.+)$", r"This is \1"),
+    (r"^Your brain has (.+)$", r"You have \1"),
+    (r"^Your brain was (.+)$", r"This was \1"),
+    (r"^Your brain does not (.+)$", r"This does not \1"),
+    (r"^Your brain doesn't (.+)$", r"This doesn't \1"),
+    (r"^Your brain ran (.+)$", r"Your body ran \1"),
+    (r"^Your brain (.+)$", r"You \1"),
+    (r"^Your amygdala (.+)$", r"The fear circuit \1"),
+    (r"^Your thalamus (.+)$", r"The relay gate \1"),
+    (r"^Your hippocampus (.+)$", r"The memory map \1"),
+    (r"^Your limbic system (.+)$", r"The emotional loop \1"),
+    (r"^Your prefrontal cortex (.+)$", r"Your logic center \1"),
+    (r"^Your insula (.+)$", r"The body-sense layer \1"),
+    (r"^Your brainstem (.+)$", r"The autonomic core \1"),
+]
+
+
+def _rewrite_banned_opener(sentence: str) -> str:
+    s = sentence.strip()
+    if not _BANNED_OPENER.match(s):
+        return s
+    for pattern, repl in _OPENER_REWRITES:
+        if re.match(pattern, s, re.IGNORECASE):
+            return re.sub(pattern, repl, s, count=1, flags=re.IGNORECASE)
+    return re.sub(r"^Your brain\s+", "You ", s, count=1, flags=re.IGNORECASE)
+
+
+def _fix_first_sentence(block: str) -> str:
+    block = block.strip()
+    if not block:
+        return block
+    m = re.match(r"^([^.!?]+[.!?])(\s*)([\s\S]*)", block)
+    if not m:
+        return _rewrite_banned_opener(block)
+    first, sep, rest = m.group(1), m.group(2), m.group(3)
+    fixed_first = _rewrite_banned_opener(first)
+    return fixed_first + sep + rest
+
+
+def _fix_banned_openings(text: str) -> str:
+    signal_m = re.search(r"(\[SIGNAL\]\s*)([\s\S]*?)(?=\[BODY\]|$)", text, re.IGNORECASE)
+    if signal_m:
+        raw_content = signal_m.group(2)
+        stripped = raw_content.strip()
+        if stripped:
+            fixed = _fix_first_sentence(stripped)
+            if fixed != stripped:
+                lead = re.match(r"^\s*", raw_content).group(0)
+                trail = re.search(r"\s*$", raw_content).group(0)
+                text = text[: signal_m.start(2)] + lead + fixed + trail + text[signal_m.end(2) :]
+
+    body_m = re.search(r"(\[BODY\]\s*)([\s\S]*?)(?=\[MORNING\]|$)", text, re.IGNORECASE)
+    if body_m:
+        raw_content = body_m.group(2)
+        stripped = raw_content.strip()
+        if stripped:
+            paras = re.split(r"\n\s*\n", stripped)
+            fixed_p0 = _fix_first_sentence(paras[0])
+            if fixed_p0 != paras[0]:
+                paras[0] = fixed_p0
+                lead = re.match(r"^\s*", raw_content).group(0)
+                trail = re.search(r"\s*$", raw_content).group(0)
+                text = (
+                    text[: body_m.start(2)]
+                    + lead
+                    + "\n\n".join(paras)
+                    + trail
+                    + text[body_m.end(2) :]
+                )
+    return text
+
 
 def sanitize_decode_output(text: str) -> str:
     """
@@ -183,7 +266,7 @@ def sanitize_decode_output(text: str) -> str:
         (r"\bHer brain ran\b", "She reported dreams where"),
         (r"\bher limbic system\s+is\s+running\b", "you are processing"),
         (r"\bHer limbic system\s+is\s+running\b", "You are processing"),
-        (r"\bsuppressed memory waiting to confess\b", "a cognitive placeholder for motor lock during atonia"),
+        (r"\bsuppressed memory waiting to confess\b", "cognitive placeholder for motor lock during atonia"),
         (
             r"\bThe watcher on the hill isn't waiting for questions\b",
             "The watcher is not a person to interrogate—it is your immobilized state projected outward",
@@ -199,6 +282,8 @@ def sanitize_decode_output(text: str) -> str:
     ]
     for pattern, repl in phrase_fixes:
         out = re.sub(pattern, repl, out, flags=re.IGNORECASE)
+
+    out = _fix_banned_openings(out)
 
     out = re.sub(
         rf"\bHer\s+(?:{_ORGAN})\s*\([^)]*\)",
@@ -241,6 +326,7 @@ def sanitize_decode_output(text: str) -> str:
         out = out[: morning.start(2)] + tail
 
     out = re.sub(r"([.!?]\s+)she ", r"\1She ", out)
+    out = re.sub(r"\ba a\b", "a", out, flags=re.IGNORECASE)
     out = re.sub(r"  +", " ", out)
     return out.strip()
 
