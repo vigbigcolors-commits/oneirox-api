@@ -202,6 +202,7 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget, mod
         f"[MORNING] max {budget.morning_limit} words.\n"
         f"Match depth to dream complexity. Long dreams need fuller diagnosis — still no padding.\n"
         f"Every brain term: name (plain words in parentheses). Typer = you/your.\n"
+        f"PRECISION CALMS: clinical term first, bridge second — ban biological gate, metabolic alertness, brain clears waste.\n"
         f"OPENING CANON: never start [SIGNAL] or BODY para 1 with Your brain/amygdala/thalamus/hippocampus."
     )
     if budget.tier != "short":
@@ -210,10 +211,10 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget, mod
     if mode == "sleep_question":
         notes.append(
             "\n\nCLIENT: Sleep-science question — NOT a dream report. "
-            "Answer with sleep neurobiology (thermoregulation, circadian timing, REM/NREM, "
-            "sympathetic downshift, etc.). Same SIGNAL/BODY/MORNING format. "
-            "Do NOT ask them to describe a dream. Do NOT refuse. OPENING CANON applies. "
-            "Include Quick answer: after BODY paragraph 1."
+            "PRECISION CALMS: minimum 3 named mechanisms (hypothalamic thermoregulation, vasodilation, "
+            "cortical micro-arousals, etc.) — each with (plain words). "
+            "BANNED: biological gate, metabolic alertness, brain clears waste. "
+            "Quick answer plain; BODY carries precision stack. Same SIGNAL/BODY/MORNING format."
         )
     if re.search(
         r"\b(?:she|her)\s+(?:dream|dreamed|dreamt|left|broke up)|"
