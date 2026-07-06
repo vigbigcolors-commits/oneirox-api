@@ -7,8 +7,30 @@ MIN_WORDS = 8
 MIN_CHARS = 40
 MAX_CHARS = 8000
 
+# Sleep-science questions (not dream reports) — lighter bar
+QUESTION_MIN_CHARS = 15
+QUESTION_MIN_WORDS = 4
+
 VOWELS = re.compile(r"[aeiouyаеёиоуыэюя]", re.IGNORECASE)
 WORD_RE = re.compile(r"\b[\w'-]+\b", re.UNICODE)
+
+_SLEEP_Q_START = re.compile(
+    r"^(?:how|what|why|when|can|does|do|is|are|will|should)\b",
+    re.IGNORECASE,
+)
+_SLEEP_TOPIC = re.compile(
+    r"\b(?:sleep|dream(?:ing)?|rem|insomnia|nap|circadian|melatonin|temperature|"
+    r"thermostat|air conditioning|air-conditioning|\bac\b|pillow|mattress|snor|"
+    r"apnea|paralysis|nightmare|wake|waking|nrem|deep sleep|light sleep|bedroom|"
+    r"cool(?:ing|er)?|heat|humidity)\b",
+    re.IGNORECASE,
+)
+_DREAM_NARRATIVE = re.compile(
+    r"\b(?:i dream(?:ed|t|ing)?|in my dream|last night|woke up|woke from|"
+    r"i was (?:running|flying|falling|trapped|chasing|in)|i couldn't move|"
+    r"i saw|i felt|nightmare|keep dreaming|dreaming about|my dream)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -26,20 +48,64 @@ def dream_word_count(text: str) -> int:
     return len(WORD_RE.findall(text))
 
 
-def validate_dream(text: str) -> None:
+def _strip_somatic_context(text: str) -> str:
+    return re.split(r"\n\n\[SOMATIC CONTEXT", text, maxsplit=1)[0].strip()
+
+
+def classify_input(text: str) -> str:
+    """Return 'dream' or 'sleep_question'."""
+    main = _strip_somatic_context(text)
+
+    if _DREAM_NARRATIVE.search(main):
+        return "dream"
+
+    if _SLEEP_Q_START.match(main) and _SLEEP_TOPIC.search(main):
+        return "sleep_question"
+
+    if main.rstrip().endswith("?") and _SLEEP_TOPIC.search(main):
+        return "sleep_question"
+
+    return "dream"
+
+
+def validate_dream(text: str) -> str:
+    """Validate input. Returns 'dream' or 'sleep_question'. Raises ValueError if rejected."""
     cleaned = text.strip()
     if not cleaned:
         raise ValueError("Describe your dream in a few sentences.")
 
-    if len(cleaned) < MIN_CHARS:
-        raise ValueError("Dream is too short. Add more detail about what happened.")
-
     if len(cleaned) > MAX_CHARS:
         raise ValueError("Dream is too long. Please shorten to under 8000 characters.")
 
-    words = [w.lower() for w in WORD_RE.findall(cleaned)]
+    mode = classify_input(cleaned)
+    main = _strip_somatic_context(cleaned)
+    words = [w.lower() for w in WORD_RE.findall(main)]
+
+    if mode == "sleep_question":
+        if len(main) < QUESTION_MIN_CHARS:
+            raise ValueError(
+                "Question too short. Ask a full sleep-science question "
+                "(e.g. how does room temperature affect deep sleep?)."
+            )
+        if len(words) < QUESTION_MIN_WORDS:
+            raise ValueError(
+                "Question too short. Ask a full sleep-science question "
+                "(e.g. how does room temperature affect deep sleep?)."
+            )
+        return mode
+
+    if len(cleaned) < MIN_CHARS:
+        raise ValueError(
+            "Your dream is too brief for a neural reading. "
+            "Describe what you saw, what you felt in your body, and what woke you — "
+            "even a few sentences."
+        )
+
     if len(words) < MIN_WORDS:
-        raise ValueError("Not enough detail. Describe the dream scene, feeling, and what woke you.")
+        raise ValueError(
+            "Not enough detail for a dream reading. "
+            "Add the scene, a body feeling, and what happened when you woke."
+        )
 
     if len(set(words)) <= 2 and len(words) >= 6:
         raise ValueError("This doesn't read like a dream description.")
@@ -66,8 +132,22 @@ def validate_dream(text: str) -> None:
     if re.search(r"(.{2,5})\1{5,}", cleaned.lower()):
         raise ValueError("This doesn't read like a dream description.")
 
+    return mode
 
-def get_response_budget(text: str) -> ResponseBudget:
+
+def get_response_budget(text: str, mode: str = "dream") -> ResponseBudget:
+    if mode == "sleep_question":
+        words = dream_word_count(_strip_somatic_context(text))
+        return ResponseBudget(
+            dream_words=words,
+            word_limit=200,
+            body_limit=130,
+            morning_limit=22,
+            signal_limit=28,
+            max_tokens=350,
+            tier="short",
+        )
+
     words = dream_word_count(text)
 
     if words < 40:
@@ -111,9 +191,10 @@ def get_response_budget(text: str) -> ResponseBudget:
     )
 
 
-def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> str:
+def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget, mode: str = "dream") -> str:
     limits = (
         f"\n\n---\n"
+        f"INPUT MODE: {mode}.\n"
         f"DREAM LENGTH: {budget.dream_words} words ({budget.tier}).\n"
         f"RESPONSE LIMIT: {budget.word_limit} words total.\n"
         f"[SIGNAL] max {budget.signal_limit} words. "
@@ -126,6 +207,14 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
     if budget.tier != "short":
         limits += "\nQUICK ANSWER: required mid-BODY — plain 1-2 sentences after para 1."
     notes: list[str] = []
+    if mode == "sleep_question":
+        notes.append(
+            "\n\nCLIENT: Sleep-science question — NOT a dream report. "
+            "Answer with sleep neurobiology (thermoregulation, circadian timing, REM/NREM, "
+            "sympathetic downshift, etc.). Same SIGNAL/BODY/MORNING format. "
+            "Do NOT ask them to describe a dream. Do NOT refuse. OPENING CANON applies. "
+            "Include Quick answer: after BODY paragraph 1."
+        )
     if re.search(
         r"\b(?:she|her)\s+(?:dream|dreamed|dreamt|left|broke up)|"
         r"\b(?:my|her)\s+(?:girlfriend|boyfriend|partner|ex|wife|husband)\b",
@@ -157,7 +246,8 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget) -> 
             "suppressed memory, attachment figure."
         )
     note = "".join(notes)
-    return f"{prompt}{limits}{note}\n\nDream: {dream_text}"
+    label = "Question" if mode == "sleep_question" else "Dream"
+    return f"{prompt}{limits}{note}\n\n{label}: {dream_text}"
 
 
 _ORGAN = (

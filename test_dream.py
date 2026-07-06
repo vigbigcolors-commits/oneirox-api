@@ -8,7 +8,7 @@ import anthropic
 from dotenv import load_dotenv
 import os
 
-from dream_validation import build_user_message, get_response_budget, sanitize_decode_output, validate_dream
+from dream_validation import build_user_message, classify_input, get_response_budget, sanitize_decode_output, validate_dream
 
 load_dotenv()
 
@@ -28,8 +28,9 @@ def analyze(dream_text: str) -> tuple[str, object]:
         sys.exit("ANTHROPIC_API_KEY not set. Add it to .env in this folder.")
 
     validate_dream(dream_text)
-    budget = get_response_budget(dream_text)
-    print(f"Dream: {budget.dream_words} words -> tier: {budget.tier}, limit: {budget.word_limit} words\n")
+    mode = classify_input(dream_text)
+    budget = get_response_budget(dream_text, mode)
+    print(f"Dream: {budget.dream_words} words -> mode: {mode}, tier: {budget.tier}, limit: {budget.word_limit} words\n")
 
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
@@ -38,7 +39,7 @@ def analyze(dream_text: str) -> tuple[str, object]:
         messages=[
             {
                 "role": "user",
-                "content": build_user_message(PROMPT, dream_text, budget),
+                "content": build_user_message(PROMPT, dream_text, budget, mode),
             }
         ],
     )

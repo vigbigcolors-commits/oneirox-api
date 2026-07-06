@@ -47,18 +47,18 @@ async def analyze_dream(dream: DreamData, request: Request):
     check_rate_limit(request.client.host)
 
     try:
-        validate_dream(dream.text)
+        mode = validate_dream(dream.text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    budget = get_response_budget(dream.text)
+    budget = get_response_budget(dream.text, mode)
     message = client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=budget.max_tokens,
         messages=[
             {
                 "role": "user",
-                "content": build_user_message(ONEIROX_PROMPT, dream.text, budget),
+                "content": build_user_message(ONEIROX_PROMPT, dream.text, budget, mode),
             }
         ],
     )
@@ -67,5 +67,6 @@ async def analyze_dream(dream: DreamData, request: Request):
         "status": "ok",
         "interpretation": raw,
         "tier": budget.tier,
+        "mode": mode,
         "word_limit": budget.word_limit,
     }
