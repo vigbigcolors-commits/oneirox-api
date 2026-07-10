@@ -29,8 +29,9 @@ def analyze(dream_text: str) -> tuple[str, object]:
 
     validate_dream(dream_text)
     mode = classify_input(dream_text)
+    lang = "ru" if re.search(r"[а-яА-ЯёЁ]", dream_text) else "en"
     budget = get_response_budget(dream_text, mode)
-    print(f"Dream: {budget.dream_words} words -> mode: {mode}, tier: {budget.tier}, limit: {budget.word_limit} words\n")
+    print(f"Dream: {budget.dream_words} words -> mode: {mode}, lang: {lang}, tier: {budget.tier}, limit: {budget.word_limit} words\n")
 
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
@@ -39,7 +40,7 @@ def analyze(dream_text: str) -> tuple[str, object]:
         messages=[
             {
                 "role": "user",
-                "content": build_user_message(PROMPT, dream_text, budget, mode),
+                "content": build_user_message(PROMPT, dream_text, budget, mode, lang=lang),
             }
         ],
     )

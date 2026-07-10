@@ -191,10 +191,17 @@ def get_response_budget(text: str, mode: str = "dream") -> ResponseBudget:
     )
 
 
-def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget, mode: str = "dream") -> str:
+def build_user_message(
+    prompt: str,
+    dream_text: str,
+    budget: ResponseBudget,
+    mode: str = "dream",
+    lang: str = "en",
+) -> str:
     limits = (
         f"\n\n---\n"
         f"INPUT MODE: {mode}.\n"
+        f"OUTPUT LANGUAGE: {lang}.\n"
         f"DREAM LENGTH: {budget.dream_words} words ({budget.tier}).\n"
         f"RESPONSE LIMIT: {budget.word_limit} words total.\n"
         f"[SIGNAL] max {budget.signal_limit} words. "
@@ -205,6 +212,16 @@ def build_user_message(prompt: str, dream_text: str, budget: ResponseBudget, mod
         f"PRECISION CALMS: clinical term first, bridge second — ban biological gate, metabolic alertness, brain clears waste.\n"
         f"OPENING CANON: never start [SIGNAL] or BODY para 1 with Your brain/amygdala/thalamus/hippocampus."
     )
+    if lang == "ru":
+        limits += (
+            "\nLANGUAGE RULE: Write ALL prose inside [SIGNAL], [BODY], and [MORNING] in Russian. "
+            "Keep section markers exactly as [SIGNAL] [BODY] [MORNING] in English brackets. "
+            "Keep Quick answer: label in English, then Russian sentences. "
+            "Typer address: вы/ваш. Plain-language bridges in Russian. "
+            "Do not mix English body prose unless quoting a proper noun (Oneirox, REM, Vigen G.R.)."
+        )
+    else:
+        limits += "\nLANGUAGE RULE: Write in English."
     if budget.tier != "short":
         limits += "\nQUICK ANSWER: required mid-BODY — plain 1-2 sentences after para 1."
     notes: list[str] = []

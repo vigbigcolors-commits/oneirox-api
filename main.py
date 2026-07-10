@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from collections import defaultdict
 from pathlib import Path
+import re
 import time
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,6 +19,7 @@ request_counts = defaultdict(list)
 RATE_LIMIT = 5
 RATE_WINDOW = 3600
 
+
 def check_rate_limit(ip: str):
     now = time.time()
     cutoff = now - RATE_WINDOW
@@ -25,6 +27,7 @@ def check_rate_limit(ip: str):
     if len(request_counts[ip]) >= RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     request_counts[ip].append(now)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,11 +39,24 @@ app.add_middleware(
 api_key = os.environ.get("ANTHROPIC_API_KEY")
 client = anthropic.Anthropic(api_key=api_key)
 
-class DreamData(BaseModel):
-    text: str
-
 PROMPT_PATH = Path(__file__).resolve().parent / "ONEIROX_PROMPT.txt"
 ONEIROX_PROMPT = PROMPT_PATH.read_text(encoding="utf-8").strip()
+
+
+class DreamData(BaseModel):
+    text: str
+    lang: str | None = None
+
+
+def _normalize_lang(lang: str | None, dream_text: str) -> str:
+    if lang:
+        code = lang.strip().lower()[:2]
+        if code in ("ru", "en"):
+            return code
+    if re.search(r"[а-яА-ЯёЁ]", dream_text):
+        return "ru"
+    return "en"
+
 
 @app.post("/analyze")
 async def analyze_dream(dream: DreamData, request: Request):
@@ -51,6 +67,7 @@ async def analyze_dream(dream: DreamData, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    lang = _normalize_lang(dream.lang, dream.text)
     budget = get_response_budget(dream.text, mode)
     message = client.messages.create(
         model="claude-sonnet-4-5",
@@ -58,7 +75,7 @@ async def analyze_dream(dream: DreamData, request: Request):
         messages=[
             {
                 "role": "user",
-                "content": build_user_message(ONEIROX_PROMPT, dream.text, budget, mode),
+                "content": build_user_message(ONEIROX_PROMPT, dream.text, budget, mode, lang=lang),
             }
         ],
     )
@@ -68,5 +85,6 @@ async def analyze_dream(dream: DreamData, request: Request):
         "interpretation": raw,
         "tier": budget.tier,
         "mode": mode,
+        "lang": lang,
         "word_limit": budget.word_limit,
     }

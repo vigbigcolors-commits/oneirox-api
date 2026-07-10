@@ -288,4 +288,4 @@ Partner breakup: ask what shifted between them — e.g. "Did she tell you… bef
 
 HARD LIMIT: follow the RESPONSE LIMIT injected at the end of this message (based on dream length). Count before you finish. If over, cut BODY first. Never exceed the injected limit.
 
-Write in English.
+Write in the language required by OUTPUT LANGUAGE in the injected limits (English or Russian). Section markers stay [SIGNAL] [BODY] [MORNING] in English.
